@@ -1,35 +1,56 @@
+# ===================================================
+# Yakuniy va To'liq Ishlaydigan render.yaml Fayli
+# ===================================================
+
+# 1. Ma'lumotlar bazasini aniqlash
+# Bu bo'lim "tabletmenu-db" nomli bepul PostgreSQL bazasini yaratadi.
 databases:
   - name: tabletmenu-db
     databaseName: tabletmenu
     user: tabletmenu_user
 
+# 2. Xizmatlarni aniqlash (Frontend va Backend)
 services:
+  # 2.1. Frontend Xizmati (React ilovasi)
   - type: web
     name: tabletmenu-frontend
-    env: static
-    rootDir: ./
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    env: static # Bu statik sayt ekanligini bildiradi
+    rootDir: ./ # Loyihaning asosiy papkasidan boshlash
+    buildCommand: npm install && npm run build # Qurish buyruqlari
+    staticPublishPath: ./dist # Qurilgan fayllar shu yerda bo'ladi
+
+    # Yo'naltirish qoidalari (Routing Rules) - ENG MUHIM QISM
     routes:
-      # This rule is essential for Single-Page Applications like React
+      # Birinchi qoida: API so'rovlari uchun Reverse Proxy
+      # /api/ bilan boshlangan har qanday so'rovni to'g'ridan-to'g'ri
+      # "tabletmenu-backend" xizmatiga o'tkazib yuboradi.
+      - type: rewrite
+        source: /api/:path*
+        destination:
+          service:
+            name: tabletmenu-backend
+            type: web
+            path: /api/:path*
+
+      # Ikkinchi qoida: React ilovasi uchun umumiy yo'naltirish
+      # API so'rovi bo'lmagan boshqa har qanday so'rovni (masalan, /customer, /admin)
+      # React'ning o'zi boshqarishi uchun index.html'ga yuboradi.
       - type: rewrite
         source: /*
         destination: /index.html
-    envVars:
-      # Give the frontend the full URL of the backend service
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: tabletmenu-backend
-          property: url
 
+  # 2.2. Backend Xizmati (Node.js API serveri)
   - type: web
     name: tabletmenu-backend
-    env: node
-    rootDir: ./server
-    buildCommand: npm install
-    startCommand: node index.js
+    env: node # Bu Node.js ilovasi ekanligini bildiradi
+    rootDir: ./server # Backend kodi "server" papkasida joylashgan
+    buildCommand: npm install # Kerakli paketlarni o'rnatish
+    startCommand: node index.js # Serverni ishga tushirish buyrug'i
+
+    # Muhit o'zgaruvchilari (Environment Variables)
     envVars:
+      # DATABASE_URL o'zgaruvchisini yuqorida yaratilgan bazaning
+      # ulanish satridan (connection string) oladi.
       - key: DATABASE_URL
         fromDatabase:
           name: tabletmenu-db

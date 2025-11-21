@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Branch, Category, Dish, Branding, CategoryViewType } from '../types';
 import { initialBranches, initialBranding } from '../services/mockData';
 
+// ... (interface StoreContextType - o'zgarishsiz)
 interface StoreContextType {
   branding: Branding;
   updateBranding: (settings: Partial<Branding>) => void;
@@ -25,9 +26,10 @@ interface StoreContextType {
   error: string | null;
 }
 
+
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL;
+// API_URL o'zgaruvchisi endi kerak emas. Barcha so'rovlar nisbiy yo'l bilan yuboriladi.
 
 const mapProductToDish = (product: any): Dish => ({
   ...product,
@@ -52,47 +54,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!API_URL) {
-        setError("VITE_API_URL is not defined. Check your Render environment variables.");
-        setLoading(false);
-        return;
-      }
       try {
         setLoading(true);
         const [catRes, prodRes] = await Promise.all([
-          fetch(`${API_URL}/api/categories`),
-          fetch(`${API_URL}/api/products`)
+          fetch('/api/categories'), // Nisbiy yo'l
+          fetch('/api/products')   // Nisbiy yo'l
         ]);
-        if (!catRes.ok || !prodRes.ok) throw new Error(`API Error: Categories ${catRes.status}, Products ${prodRes.status}`);
+        if (!catRes.ok || !prodRes.ok) {
+          throw new Error(`API so'rovida xatolik: Kategoriyalar ${catRes.status}, Mahsulotlar ${prodRes.status}`);
+        }
         const catData = await catRes.json();
         const prodData = await prodRes.json();
         setCategories(catData.map((c: any) => ({ ...c, id: c.id.toString() })));
         setDishes(prodData.map(mapProductToDish));
-      } catch (e: any) { setError(e.message); } finally { setLoading(false); }
+      } catch (e: any) {
+        setError(e.message);
+        console.error("Ma'lumotlarni yuklashda xatolik:", e);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
 
+  // --- CRUD Funksiyalari (barchasi nisbiy yo'llarni ishlatadi) ---
+
   const addCategory = async (name: string, viewType: CategoryViewType = 'grid') => {
     try {
-      const res = await fetch(`${API_URL}/api/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, viewType, sortOrder: categories.length + 1 }) });
-      if (!res.ok) throw new Error('Failed to create category');
+      const res = await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, viewType, sortOrder: categories.length + 1 }) });
+      if (!res.ok) throw new Error('Kategoriyani yaratishda xatolik');
       const newCategory = await res.json();
       setCategories(prev => [...prev, { ...newCategory, id: newCategory.id.toString() }]);
     } catch (err) { console.error(err); }
   };
+
   const updateCategory = async (id: string, data: Partial<Category>) => {
     try {
-      const res = await fetch(`${API_URL}/api/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-      if (!res.ok) throw new Error('Failed to update category');
+      const res = await fetch(`/api/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error('Kategoriyani yangilashda xatolik');
       const updatedCategory = await res.json();
       setCategories(prev => prev.map(c => c.id === id ? { ...updatedCategory, id: updatedCategory.id.toString() } : c));
     } catch (err) { console.error(err); }
   };
+
   const deleteCategory = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/categories/${id}`, { method: 'DELETE' });
-      if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || 'Failed to delete'); }
+      const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+      if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || 'O\'chirishda xatolik'); }
       setCategories(prev => prev.filter(c => c.id !== id));
     } catch (err: any) { console.error(err); alert(err.message); }
   };
@@ -100,29 +108,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addDish = async (dishData: Omit<Dish, 'id'>) => {
     try {
       const payload = { ...dishData, category_id: dishData.categoryId, image_url: dishData.imageUrls?.[0] || null };
-      const res = await fetch(`${API_URL}/api/products`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('Failed to create dish');
+      const res = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error('Taomni yaratishda xatolik');
       const newProduct = await res.json();
       setDishes(prev => [...prev, mapProductToDish(newProduct)]);
     } catch (err) { console.error(err); }
   };
+
   const updateDish = async (id: string, data: Partial<Dish>) => {
     try {
       const payload = { ...data, category_id: data.categoryId, image_url: data.imageUrls?.[0] || null };
-      const res = await fetch(`${API_URL}/api/products/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('Failed to update dish');
+      const res = await fetch(`/api/products/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error('Taomni yangilashda xatolik');
       const updatedProduct = await res.json();
       setDishes(prev => prev.map(d => d.id === id ? mapProductToDish(updatedProduct) : d));
     } catch (err) { console.error(err); }
   };
+
   const deleteDish = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/products/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete dish');
+      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Taomni o\'chirishda xatolik');
       setDishes(prev => prev.filter(d => d.id !== id));
     } catch (err) { console.error(err); }
   };
 
+  // ... (boshqa funksiyalar o'zgarishsiz)
   const updateBranding = (settings: Partial<Branding>) => setBranding(prev => ({ ...prev, ...settings }));
   const addBranch = (branchData: Omit<Branch, 'id'>) => setBranches(prev => [...prev, { ...branchData, id: `br-${Date.now()}` }]);
   const updateBranch = (id: string, data: Partial<Branch>) => setBranches(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
@@ -133,7 +144,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const getDishesByCategory = (categoryId: string) => dishes.filter(d => d.categoryId === categoryId).sort((a, b) => a.sortOrder - b.sortOrder);
 
   if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (error) return <div>Xatolik: {error}</div>;
 
   return (
     <StoreContext.Provider value={{
