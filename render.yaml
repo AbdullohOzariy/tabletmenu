@@ -11,15 +11,22 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     routes:
+      # Reverse proxy for API calls
+      - type: rewrite
+        source: /api/:path*
+        destination:
+          service:
+            name: tabletmenu-backend
+            type: web
+            path: /api/:path*
+      # Catch-all for single-page application (SPA)
       - type: rewrite
         source: /*
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: tabletmenu-backend
-          property: url
+        # We now make API calls to the same domain, so we can use a relative path
+        value: "" 
 
   - type: web
     name: tabletmenu-backend

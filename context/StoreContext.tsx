@@ -27,9 +27,9 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL;
+// If VITE_API_URL is not provided, it defaults to an empty string for relative paths
+const API_URL = import.meta.env.VITE_API_URL || "";
 
-// Helper to map backend product to frontend Dish
 const mapProductToDish = (product: any): Dish => ({
   ...product,
   id: product.id.toString(),
@@ -53,15 +53,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!API_URL) {
-        setError("API URL is not configured. VITE_API_URL is missing.");
-        setLoading(false);
-        return;
-      }
       try {
         setLoading(true);
-        const [catRes, prodRes] = await Promise.all([fetch(`${API_URL}/api/categories`), fetch(`${API_URL}/api/products`)]);
-        if (!catRes.ok || !prodRes.ok) throw new Error(`Failed to fetch data. Server responded with ${catRes.status} & ${prodRes.status}`);
+        const [catRes, prodRes] = await Promise.all([
+          fetch(`${API_URL}/api/categories`),
+          fetch(`${API_URL}/api/products`)
+        ]);
+        if (!catRes.ok || !prodRes.ok) throw new Error(`API Error: Categories ${catRes.status}, Products ${prodRes.status}`);
         const catData = await catRes.json();
         const prodData = await prodRes.json();
         setCategories(catData.map((c: any) => ({ ...c, id: c.id.toString() })));
@@ -71,7 +69,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetchData();
   }, []);
 
-  // --- CATEGORY MANAGEMENT ---
   const addCategory = async (name: string, viewType: CategoryViewType = 'grid') => {
     try {
       const res = await fetch(`${API_URL}/api/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, viewType, sortOrder: categories.length + 1 }) });
@@ -96,7 +93,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err: any) { console.error(err); alert(err.message); }
   };
 
-  // --- DISH MANAGEMENT ---
   const addDish = async (dishData: Omit<Dish, 'id'>) => {
     try {
       const payload = { ...dishData, category_id: dishData.categoryId, image_url: dishData.imageUrls?.[0] || null };
@@ -123,7 +119,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err) { console.error(err); }
   };
 
-  // Other functions...
   const updateBranding = (settings: Partial<Branding>) => setBranding(prev => ({ ...prev, ...settings }));
   const addBranch = (branchData: Omit<Branch, 'id'>) => setBranches(prev => [...prev, { ...branchData, id: `br-${Date.now()}` }]);
   const updateBranch = (id: string, data: Partial<Branch>) => setBranches(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
