@@ -26,7 +26,8 @@ interface StoreContextType {
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 // Helper to map backend product to frontend Dish
 const mapProductToDish = (product: any): Dish => ({
@@ -34,9 +35,8 @@ const mapProductToDish = (product: any): Dish => ({
   id: product.id.toString(),
   categoryId: product.category_id.toString(),
   sortOrder: product.sortOrder || 0,
-  isActive: true, // Assuming default
+  isActive: true,
   imageUrls: product.image_url ? [product.image_url] : [],
-  // Add other fields with defaults if they don't exist on backend model
   variants: product.variants || [],
   badges: product.badges || [],
   isFeatured: product.isFeatured || false,
@@ -53,10 +53,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!API_URL) {
+        setError("API URL is not configured. VITE_API_URL is missing.");
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         const [catRes, prodRes] = await Promise.all([fetch(`${API_URL}/api/categories`), fetch(`${API_URL}/api/products`)]);
-        if (!catRes.ok || !prodRes.ok) throw new Error('Failed to fetch data');
+        if (!catRes.ok || !prodRes.ok) throw new Error(`Failed to fetch data. Server responded with ${catRes.status} & ${prodRes.status}`);
         const catData = await catRes.json();
         const prodData = await prodRes.json();
         setCategories(catData.map((c: any) => ({ ...c, id: c.id.toString() })));
@@ -94,32 +99,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // --- DISH MANAGEMENT ---
   const addDish = async (dishData: Omit<Dish, 'id'>) => {
     try {
-      const payload = {
-        ...dishData,
-        category_id: dishData.categoryId,
-        image_url: dishData.imageUrls?.[0] || null,
-      };
+      const payload = { ...dishData, category_id: dishData.categoryId, image_url: dishData.imageUrls?.[0] || null };
       const res = await fetch(`${API_URL}/api/products`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error('Failed to create dish');
       const newProduct = await res.json();
       setDishes(prev => [...prev, mapProductToDish(newProduct)]);
     } catch (err) { console.error(err); }
   };
-
   const updateDish = async (id: string, data: Partial<Dish>) => {
     try {
-      const payload = {
-        ...data,
-        category_id: data.categoryId,
-        image_url: data.imageUrls?.[0] || null,
-      };
+      const payload = { ...data, category_id: data.categoryId, image_url: data.imageUrls?.[0] || null };
       const res = await fetch(`${API_URL}/api/products/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error('Failed to update dish');
       const updatedProduct = await res.json();
       setDishes(prev => prev.map(d => d.id === id ? mapProductToDish(updatedProduct) : d));
     } catch (err) { console.error(err); }
   };
-
   const deleteDish = async (id: string) => {
     try {
       const res = await fetch(`${API_URL}/api/products/${id}`, { method: 'DELETE' });
