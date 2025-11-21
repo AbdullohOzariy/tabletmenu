@@ -1,43 +1,41 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Branch, Category, Dish, Branding, CategoryViewType } from '../types';
-import { initialBranches, initialBranding } from '../services/mockData'; // Keep mock for branches/branding
+import { initialBranches, initialBranding } from '../services/mockData';
 
+// ... (interface StoreContextType remains the same)
 interface StoreContextType {
   branding: Branding;
   updateBranding: (settings: Partial<Branding>) => void;
-  
   branches: Branch[];
   addBranch: (branch: Omit<Branch, 'id'>) => void;
   updateBranch: (id: string, data: Partial<Branch>) => void;
   deleteBranch: (id: string) => void;
   reorderBranches: (branches: Branch[]) => void;
-
   categories: Category[];
-  addCategory: (name: string, viewType: CategoryViewType) => void;
-  updateCategory: (id: string, data: Partial<Category>) => void;
-  deleteCategory: (id: string) => void;
-
+  addCategory: (name: string, viewType: CategoryViewType) => Promise<void>;
+  updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   dishes: Dish[];
   addDish: (dish: Omit<Dish, 'id'>) => void;
   updateDish: (id: string, data: Partial<Dish>) => void;
   deleteDish: (id: string) => void;
   reorderDishes: (updatedDishes: Dish[]) => void;
   moveDish: (id: string, direction: 'up' | 'down') => void;
-
-  // Helper for Customer View
   getDishesByCategory: (categoryId: string) => Dish[];
+  loading: boolean;
+  error: string | null;
 }
+
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-// Get API URL from environment variables
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [branding, setBranding] = useState<Branding>(initialBranding);
   const [branches, setBranches] = useState<Branch[]>(initialBranches);
-  const [categories, setCategories] = useState<Category[]>([]); // Start with empty array
-  const [dishes, setDishes] = useState<Dish[]>([]); // Start with empty array
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [dishes, setDishes] = useState<Dish[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,107 +44,89 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Fetch categories and products in parallel
         const [categoriesRes, productsRes] = await Promise.all([
           fetch(`${API_URL}/api/categories`),
           fetch(`${API_URL}/api/products`)
         ]);
-
-        if (!categoriesRes.ok || !productsRes.ok) {
-          throw new Error('Failed to fetch data');
-        }
-
+        if (!categoriesRes.ok || !productsRes.ok) throw new Error('Failed to fetch data');
         const categoriesData = await categoriesRes.json();
         const productsData = await productsRes.json();
-
-        // NOTE: The data from backend needs to be mapped to frontend types if they differ.
-        // Assuming the structure is compatible for now.
-        // We need to ensure the backend provides 'sortOrder' and other fields.
-        // For now, let's add a mock sortOrder if it's missing.
-        setCategories(categoriesData.map((c: any, index: number) => ({ ...c, sortOrder: c.sortOrder || index })));
+        setCategories(categoriesData.map((c: any, index: number) => ({ ...c, id: c.id.toString(), sortOrder: c.sortOrder || index })));
         setDishes(productsData.map((p: any, index: number) => ({ 
-            ...p, 
-            id: p.id.toString(), // Ensure ID is a string
-            categoryId: p.category_id.toString(), // Ensure categoryId is a string
-            sortOrder: p.sortOrder || index,
-            isActive: true, // Default value
-            imageUrls: p.image_url ? [p.image_url] : [], // Convert to array
+            ...p, id: p.id.toString(), categoryId: p.category_id.toString(), sortOrder: p.sortOrder || index, isActive: true, imageUrls: p.image_url ? [p.image_url] : []
         } as Dish)));
-
       } catch (e: any) {
         setError(e.message);
-        console.error("Failed to fetch data from backend:", e);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-
-  // -- Branding --
-  const updateBranding = (settings: Partial<Branding>) => {
-    setBranding(prev => ({ ...prev, ...settings }));
+  // --- CATEGORY MANAGEMENT ---
+  const addCategory = async (name: string, viewType: CategoryViewType = 'grid') => {
+    try {
+      const res = await fetch(`${API_URL}/api/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, viewType, sortOrder: categories.length + 1 }),
+      });
+      if (!res.ok) throw new Error('Failed to create category');
+      const newCategory = await res.json();
+      setCategories(prev => [...prev, { ...newCategory, id: newCategory.id.toString() }]);
+    } catch (err: any) {
+      console.error(err);
+      // Optionally, set an error state to show in the UI
+    }
   };
 
-  // -- Branches --
-  const addBranch = (branchData: Omit<Branch, 'id'>) => {
-    const newBranch: Branch = { ...branchData, id: `br-${Date.now()}` };
-    setBranches(prev => [...prev, newBranch]);
+  const updateCategory = async (id: string, data: Partial<Category>) => {
+    try {
+      const res = await fetch(`${API_URL}/api/categories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to update category');
+      const updatedCategory = await res.json();
+      setCategories(prev => prev.map(c => c.id === id ? { ...updatedCategory, id: updatedCategory.id.toString() } : c));
+    } catch (err: any) {
+      console.error(err);
+    }
   };
-  const updateBranch = (id: string, data: Partial<Branch>) => {
-    setBranches(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
+
+  const deleteCategory = async (id: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/categories/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to delete category');
+      }
+      setCategories(prev => prev.filter(c => c.id !== id));
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message); // Show error to user
+    }
   };
-  const deleteBranch = (id: string) => {
-    setBranches(prev => prev.filter(b => b.id !== id));
-  };
+
+  // --- OTHER FUNCTIONS (Branding, Branches, Dishes) ---
+  const updateBranding = (settings: Partial<Branding>) => setBranding(prev => ({ ...prev, ...settings }));
+  const addBranch = (branchData: Omit<Branch, 'id'>) => setBranches(prev => [...prev, { ...branchData, id: `br-${Date.now()}` }]);
+  const updateBranch = (id: string, data: Partial<Branch>) => setBranches(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
+  const deleteBranch = (id: string) => setBranches(prev => prev.filter(b => b.id !== id));
   const reorderBranches = (newBranches: Branch[]) => setBranches(newBranches);
+  const addDish = (dishData: Omit<Dish, 'id'>) => console.log("Add dish not implemented");
+  const updateDish = (id: string, data: Partial<Dish>) => console.log("Update dish not implemented");
+  const deleteDish = (id: string) => console.log("Delete dish not implemented");
+  const reorderDishes = (updatedDishes: Dish[]) => console.log("Reorder dishes not implemented");
+  const moveDish = (id: string, direction: 'up' | 'down') => console.log("Move dish not implemented");
+  const getDishesByCategory = (categoryId: string) => dishes.filter(d => d.categoryId === categoryId).sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // -- Categories --
-  const addCategory = (name: string, viewType: CategoryViewType = 'grid') => {
-    // This should now be a POST request to the backend
-    console.log("Adding category (not implemented with backend yet):", name);
-  };
-  const updateCategory = (id: string, data: Partial<Category>) => {
-    // This should be a PUT/PATCH request
-    console.log("Updating category (not implemented with backend yet):", id, data);
-  };
-  const deleteCategory = (id: string) => {
-    // This should be a DELETE request
-    console.log("Deleting category (not implemented with backend yet):", id);
-  };
-
-  // -- Dishes --
-  const addDish = (dishData: Omit<Dish, 'id'>) => {
-    console.log("Adding dish (not implemented with backend yet):", dishData);
-  };
-  const updateDish = (id: string, data: Partial<Dish>) => {
-    console.log("Updating dish (not implemented with backend yet):", id, data);
-  };
-  const deleteDish = (id: string) => {
-    console.log("Deleting dish (not implemented with backend yet):", id);
-  };
-  const reorderDishes = (updatedDishes: Dish[]) => {
-    console.log("Reordering dishes (not implemented with backend yet)");
-  };
-  const moveDish = (id: string, direction: 'up' | 'down') => {
-    console.log("Moving dish (not implemented with backend yet)");
-  };
-
-  const getDishesByCategory = (categoryId: string) => {
-    return dishes
-      .filter(d => d.categoryId === categoryId)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-  };
-
-  // You can add a loading/error state to the UI if you want
-  if (loading) {
-    return <div>Loading...</div>; // Or a fancy spinner component
-  }
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
     <StoreContext.Provider value={{
@@ -154,7 +134,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       branches, addBranch, updateBranch, deleteBranch, reorderBranches,
       categories, addCategory, updateCategory, deleteCategory,
       dishes, addDish, updateDish, deleteDish, reorderDishes, moveDish,
-      getDishesByCategory
+      getDishesByCategory,
+      loading, error
     }}>
       {children}
     </StoreContext.Provider>
