@@ -27,8 +27,7 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-// If VITE_API_URL is not provided, it defaults to an empty string for relative paths
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = import.meta.env.VITE_API_URL;
 
 const mapProductToDish = (product: any): Dish => ({
   ...product,
@@ -53,6 +52,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!API_URL) {
+        setError("VITE_API_URL is not defined. Check your Render environment variables.");
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         const [catRes, prodRes] = await Promise.all([
