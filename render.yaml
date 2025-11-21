@@ -1,42 +1,31 @@
 # ===================================================
-# Yakuniy, Tuzatilgan va To'liq Ishlaydigan render.yaml
+# To'g'rilangan render.yaml
 # ===================================================
 
-# 1. Ma'lumotlar bazasini aniqlash
 databases:
   - name: tabletmenu-db
     databaseName: tabletmenu
     user: tabletmenu_user
 
-# 2. Xizmatlarni aniqlash
 services:
-  # 2.1. Frontend Xizmati (React ilovasi)
+  # 1. Frontend (static React)
   - type: web
     name: tabletmenu-frontend
-    env: static
+    env: static          # yoki runtime: static
     rootDir: ./
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
-    routes:
-      # Birinchi qoida: API so'rovlari uchun Reverse Proxy
-      # /api/ bilan boshlangan so'rovni backend xizmatiga yo'naltiradi.
-      - type: rewrite
-        source: /api/:path*
-        destination: /api/:path* # Backend'dagi yo'l o'zgarishsiz qoladi
-        service: # Qaysi xizmatga yuborish kerakligi shu yerda ko'rsatiladi
-          name: tabletmenu-backend
-          type: web
 
-      # Ikkinchi qoida: SPA uchun umumiy yo'naltirish
-      # Boshqa har qanday so'rovni index.html'ga yuboradi.
+    routes:
+      # SPA router uchun: hamma yo'lni index.html ga yozib yuborish
       - type: rewrite
         source: /*
         destination: /index.html
 
-  # 2.2. Backend Xizmati (Node.js API serveri)
+  # 2. Backend (Node.js API)
   - type: web
     name: tabletmenu-backend
-    env: node
+    env: node            # yoki runtime: node
     rootDir: ./server
     buildCommand: npm install
     startCommand: node index.js
