@@ -1,40 +1,34 @@
 # ===================================================
-# Yakuniy va To'liq Ishlaydigan render.yaml Fayli
+# Yakuniy, Tuzatilgan va To'liq Ishlaydigan render.yaml
 # ===================================================
 
 # 1. Ma'lumotlar bazasini aniqlash
-# Bu bo'lim "tabletmenu-db" nomli bepul PostgreSQL bazasini yaratadi.
 databases:
   - name: tabletmenu-db
     databaseName: tabletmenu
     user: tabletmenu_user
 
-# 2. Xizmatlarni aniqlash (Frontend va Backend)
+# 2. Xizmatlarni aniqlash
 services:
   # 2.1. Frontend Xizmati (React ilovasi)
   - type: web
     name: tabletmenu-frontend
-    env: static # Bu statik sayt ekanligini bildiradi
-    rootDir: ./ # Loyihaning asosiy papkasidan boshlash
-    buildCommand: npm install && npm run build # Qurish buyruqlari
-    staticPublishPath: ./dist # Qurilgan fayllar shu yerda bo'ladi
-
-    # Yo'naltirish qoidalari (Routing Rules) - ENG MUHIM QISM
+    env: static
+    rootDir: ./
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
     routes:
       # Birinchi qoida: API so'rovlari uchun Reverse Proxy
-      # /api/ bilan boshlangan har qanday so'rovni to'g'ridan-to'g'ri
-      # "tabletmenu-backend" xizmatiga o'tkazib yuboradi.
+      # /api/ bilan boshlangan so'rovni backend xizmatiga yo'naltiradi.
       - type: rewrite
         source: /api/:path*
-        destination:
-          service:
-            name: tabletmenu-backend
-            type: web
-            path: /api/:path*
+        destination: /api/:path* # Backend'dagi yo'l o'zgarishsiz qoladi
+        service: # Qaysi xizmatga yuborish kerakligi shu yerda ko'rsatiladi
+          name: tabletmenu-backend
+          type: web
 
-      # Ikkinchi qoida: React ilovasi uchun umumiy yo'naltirish
-      # API so'rovi bo'lmagan boshqa har qanday so'rovni (masalan, /customer, /admin)
-      # React'ning o'zi boshqarishi uchun index.html'ga yuboradi.
+      # Ikkinchi qoida: SPA uchun umumiy yo'naltirish
+      # Boshqa har qanday so'rovni index.html'ga yuboradi.
       - type: rewrite
         source: /*
         destination: /index.html
@@ -42,15 +36,11 @@ services:
   # 2.2. Backend Xizmati (Node.js API serveri)
   - type: web
     name: tabletmenu-backend
-    env: node # Bu Node.js ilovasi ekanligini bildiradi
-    rootDir: ./server # Backend kodi "server" papkasida joylashgan
-    buildCommand: npm install # Kerakli paketlarni o'rnatish
-    startCommand: node index.js # Serverni ishga tushirish buyrug'i
-
-    # Muhit o'zgaruvchilari (Environment Variables)
+    env: node
+    rootDir: ./server
+    buildCommand: npm install
+    startCommand: node index.js
     envVars:
-      # DATABASE_URL o'zgaruvchisini yuqorida yaratilgan bazaning
-      # ulanish satridan (connection string) oladi.
       - key: DATABASE_URL
         fromDatabase:
           name: tabletmenu-db
