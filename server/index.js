@@ -61,7 +61,34 @@ app.delete('/api/categories/:id', async (req, res) => { try { const { id } = req
 // Products
 app.get('/api/products', async (req, res) => { try { const r = await pool.query('SELECT * FROM products ORDER BY sortOrder;'); res.json(r.rows); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/products', async (req, res) => { try { const { name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds } = req.body; const r = await pool.query('INSERT INTO products (name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *', [name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds]); res.status(201).json(r.rows[0]); } catch (e) { res.status(500).json({ error: e.message }); } });
-app.put('/api/products/:id', async (req, res) => { try { const { id } = req.params; const { name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds } = req.body; const r = await pool.query('UPDATE products SET name=$1, description=$2, price=$3, category_id=$4, image_url=$5, sortOrder=$6, isActive=$7, isFeatured=$8, variants=$9, badges=$10, availableBranchIds=$11 WHERE id=$12 RETURNING *', [name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds, id]); res.json(r.rows[0]); } catch (e) { res.status(500).json({ error: e.message }); } });
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const fields = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (updates.name !== undefined) { fields.push(`name = $${paramIndex++}`); values.push(updates.name); }
+    if (updates.description !== undefined) { fields.push(`description = $${paramIndex++}`); values.push(updates.description); }
+    if (updates.price !== undefined) { fields.push(`price = $${paramIndex++}`); values.push(updates.price); }
+    if (updates.category_id !== undefined) { fields.push(`category_id = $${paramIndex++}`); values.push(updates.category_id); }
+    if (updates.image_url !== undefined) { fields.push(`image_url = $${paramIndex++}`); values.push(updates.image_url); }
+    if (updates.sortOrder !== undefined) { fields.push(`sortOrder = $${paramIndex++}`); values.push(updates.sortOrder); }
+    if (updates.isActive !== undefined) { fields.push(`isActive = $${paramIndex++}`); values.push(updates.isActive); }
+    if (updates.isFeatured !== undefined) { fields.push(`isFeatured = $${paramIndex++}`); values.push(updates.isFeatured); }
+    if (updates.variants !== undefined) { fields.push(`variants = $${paramIndex++}`); values.push(updates.variants); }
+    if (updates.badges !== undefined) { fields.push(`badges = $${paramIndex++}`); values.push(updates.badges); }
+    if (updates.availableBranchIds !== undefined) { fields.push(`availableBranchIds = $${paramIndex++}`); values.push(updates.availableBranchIds); }
+
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    values.push(id);
+    const query = `UPDATE products SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+    const r = await pool.query(query, values);
+    res.json(r.rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.delete('/api/products/:id', async (req, res) => { try { const { id } = req.params; await pool.query('DELETE FROM products WHERE id = $1', [id]); res.status(204).send(); } catch (e) { res.status(500).json({ error: e.message }); } });
 
 // Branches
