@@ -1,15 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Branch, Category, Dish, Branding, CategoryViewType } from '../types';
-import { initialBranches, initialBranding } from '../services/mockData';
+
+// Boshlang'ich bo'sh qiymatlar
+const initialBranding: Branding = {
+    restaurantName: 'Yuklanmoqda...',
+    logoUrl: '',
+    primaryColor: '#F97316',
+    backgroundColor: '#FFFFFF',
+    cardColor: '#F8F9FC',
+    textColor: '#111827',
+    mutedColor: '#6B7280',
+    backgroundImageUrl: '',
+    headerImageUrl: ''
+};
 
 interface StoreContextType {
   branding: Branding;
-  updateBranding: (settings: Partial<Branding>) => void;
+  updateBranding: (settings: Partial<Branding>) => Promise<void>;
   branches: Branch[];
-  addBranch: (branch: Omit<Branch, 'id'>) => void;
-  updateBranch: (id: string, data: Partial<Branch>) => void;
-  deleteBranch: (id: string) => void;
-  reorderBranches: (branches: Branch[]) => void;
+  addBranch: (branch: Omit<Branch, 'id'>) => Promise<void>;
+  updateBranch: (id: string, data: Partial<Branch>) => Promise<void>;
+  deleteBranch: (id: string) => Promise<void>;
   categories: Category[];
   addCategory: (name: string, viewType: CategoryViewType) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
@@ -18,53 +29,56 @@ interface StoreContextType {
   addDish: (dish: Omit<Dish, 'id'>) => Promise<void>;
   updateDish: (id: string, data: Partial<Dish>) => Promise<void>;
   deleteDish: (id: string) => Promise<void>;
-  reorderDishes: (updatedDishes: Dish[]) => void;
-  moveDish: (id: string, direction: 'up' | 'down') => void;
-  getDishesByCategory: (categoryId: string) => Dish[];
   loading: boolean;
   error: string | null;
+  // Hali implement qilinmagan funksiyalar
+  reorderDishes: (updatedDishes: Dish[]) => void;
+  moveDish: (id: string, direction: 'up' | 'down') => void;
+  reorderBranches: (branches: Branch[]) => void;
+  getDishesByCategory: (categoryId: string) => Dish[];
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-// Hardcoded URL for reliable testing
 const API_URL = "https://tabletmenu-backend-production.up.railway.app";
 
-const mapProductToDish = (product: any): Dish => ({
-  ...product,
-  id: product.id.toString(),
-  categoryId: product.category_id.toString(),
-  sortOrder: product.sortOrder || 0,
-  isActive: true,
-  imageUrls: product.image_url ? [product.image_url] : [],
-  variants: product.variants || [],
-  badges: product.badges || [],
-  isFeatured: product.isFeatured || false,
-  availableBranchIds: product.availableBranchIds || [],
-});
+const mapToFrontend = (data: any, type: 'dish' | 'branch' | 'category') => {
+    if (type === 'dish') return { ...data, id: data.id.toString(), categoryId: data.category_id?.toString(), imageUrls: data.image_url ? [data.image_url] : [] };
+    if (type === 'branch' || type === 'category') return { ...data, id: data.id.toString() };
+    return data;
+};
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [branding, setBranding] = useState<Branding>(initialBranding);
-  const [branches, setBranches] = useState<Branch[]>(initialBranches);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- DATA FETCHING (GET) ---
+  // --- BARCHA MA'LUMOTLARNI YUKLASH ---
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [catRes, prodRes] = await Promise.all([
+        const [brandRes, branchRes, catRes, prodRes] = await Promise.all([
+          fetch(`${API_URL}/api/branding`),
+          fetch(`${API_URL}/api/branches`),
           fetch(`${API_URL}/api/categories`),
           fetch(`${API_URL}/api/products`)
         ]);
-        if (!catRes.ok || !prodRes.ok) throw new Error(`API Error: ${catRes.status}, ${prodRes.status}`);
+        if (!brandRes.ok || !branchRes.ok || !catRes.ok || !prodRes.ok) throw new Error(`API xatolik`);
+        
+        const brandData = await brandRes.json();
+        const branchData = await branchRes.json();
         const catData = await catRes.json();
         const prodData = await prodRes.json();
-        setCategories(catData.map((c: any) => ({ ...c, id: c.id.toString() })));
-        setDishes(prodData.map(mapProductToDish));
+
+        setBranding({ ...initialBranding, ...brandData });
+        setBranches(branchData.map((d: any) => mapToFrontend(d, 'branch')));
+        setCategories(catData.map((d: any) => mapToFrontend(d, 'category')));
+        setDishes(prodData.map((d: any) => mapToFrontend(d, 'dish')));
+        
         setError(null);
       } catch (e: any) {
         setError(e.message);
@@ -76,99 +90,85 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetchData();
   }, []);
 
-  // --- CATEGORY MANAGEMENT (CREATE, UPDATE, DELETE) ---
-  const addCategory = async (name: string, viewType: CategoryViewType = 'grid') => {
-    try {
-      const res = await fetch(`${API_URL}/api/categories`, {
-        method: 'POST',
+  const apiRequest = async (endpoint: string, method: 'POST' | 'PUT' | 'DELETE', body?: any) => {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, viewType, sortOrder: categories.length + 1 }),
+        body: body ? JSON.stringify(body) : undefined,
       });
-      if (!res.ok) throw new Error('Failed to create category');
-      const newCategory = await res.json();
-      setCategories(prev => [...prev, { ...newCategory, id: newCategory.id.toString() }]);
-    } catch (err) { console.error(err); }
+      if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: 'Serverda noma\'lum xatolik' }));
+          throw new Error(errorData.error || `Failed to ${method} ${endpoint}`);
+      }
+      return res.status === 204 ? null : res.json();
   };
 
+  // --- BRANDING ---
+  const updateBranding = async (data: Partial<Branding>) => {
+      const updatedBranding = await apiRequest('/api/branding', 'PUT', data);
+      setBranding(prev => ({ ...prev, ...updatedBranding }));
+  };
+
+  // --- BRANCHES ---
+  const addBranch = async (data: Omit<Branch, 'id'>) => {
+      const newBranch = await apiRequest('/api/branches', 'POST', data);
+      setBranches(prev => [...prev, mapToFrontend(newBranch, 'branch')]);
+  };
+  const updateBranch = async (id: string, data: Partial<Branch>) => {
+      const updatedBranch = await apiRequest(`/api/branches/${id}`, 'PUT', data);
+      setBranches(prev => prev.map(b => b.id === id ? mapToFrontend(updatedBranch, 'branch') : b));
+  };
+  const deleteBranch = async (id: string) => {
+      await apiRequest(`/api/branches/${id}`, 'DELETE');
+      setBranches(prev => prev.filter(b => b.id !== id));
+  };
+
+  // --- CATEGORIES ---
+  const addCategory = async (name: string, viewType: CategoryViewType) => {
+      const newCategory = await apiRequest('/api/categories', 'POST', { name, viewType, sortOrder: categories.length });
+      setCategories(prev => [...prev, mapToFrontend(newCategory, 'category')]);
+  };
   const updateCategory = async (id: string, data: Partial<Category>) => {
-    try {
-      const res = await fetch(`${API_URL}/api/categories/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error('Failed to update category');
-      const updatedCategory = await res.json();
-      setCategories(prev => prev.map(c => c.id === id ? { ...updatedCategory, id: updatedCategory.id.toString() } : c));
-    } catch (err) { console.error(err); }
+      const updatedCategory = await apiRequest(`/api/categories/${id}`, 'PUT', data);
+      setCategories(prev => prev.map(c => c.id === id ? mapToFrontend(updatedCategory, 'category') : c));
   };
-
   const deleteCategory = async (id: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/categories/${id}`, { method: 'DELETE' });
-      if (!res.ok) { const errData = await res.json(); throw new Error(errData.error || 'Failed to delete'); }
+      await apiRequest(`/api/categories/${id}`, 'DELETE');
       setCategories(prev => prev.filter(c => c.id !== id));
-    } catch (err: any) { console.error(err); alert(err.message); }
   };
 
-  // --- DISH MANAGEMENT (CREATE, UPDATE, DELETE) ---
-  const addDish = async (dishData: Omit<Dish, 'id'>) => {
-    try {
-      const payload = { ...dishData, category_id: dishData.categoryId, image_url: dishData.imageUrls?.[0] || null };
-      const res = await fetch(`${API_URL}/api/products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error('Failed to create dish');
-      const newProduct = await res.json();
-      setDishes(prev => [...prev, mapProductToDish(newProduct)]);
-    } catch (err) { console.error(err); }
-  };
-
-  const updateDish = async (id: string, data: Partial<Dish>) => {
-    try {
-      // Backend'ga moslashtirish
+  // --- DISHES ---
+  const addDish = async (data: Omit<Dish, 'id'>) => {
       const payload = { ...data, category_id: data.categoryId, image_url: data.imageUrls?.[0] || null };
-      const res = await fetch(`${API_URL}/api/products/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error('Failed to update dish');
-      const updatedProduct = await res.json();
-      // Ekranni yangilash
-      setDishes(prev => prev.map(d => d.id === id ? mapProductToDish(updatedProduct) : d));
-    } catch (err) { console.error(err); }
+      const newDish = await apiRequest('/api/products', 'POST', payload);
+      setDishes(prev => [...prev, mapToFrontend(newDish, 'dish')]);
   };
-
+  const updateDish = async (id: string, data: Partial<Dish>) => {
+      const payload = { ...data, category_id: data.categoryId, image_url: data.imageUrls?.[0] || null };
+      const updatedDish = await apiRequest(`/api/products/${id}`, 'PUT', payload);
+      setDishes(prev => prev.map(d => d.id === id ? mapToFrontend(updatedDish, 'dish') : d));
+  };
   const deleteDish = async (id: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/products/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete dish');
+      await apiRequest(`/api/products/${id}`, 'DELETE');
       setDishes(prev => prev.filter(d => d.id !== id));
-    } catch (err) { console.error(err); }
   };
 
-  // ... (boshqa funksiyalar)
-  const updateBranding = (settings: Partial<Branding>) => setBranding(prev => ({ ...prev, ...settings }));
-  const addBranch = (branchData: Omit<Branch, 'id'>) => setBranches(prev => [...prev, { ...branchData, id: `br-${Date.now()}` }]);
-  const updateBranch = (id: string, data: Partial<Branch>) => setBranches(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
-  const deleteBranch = (id: string) => setBranches(prev => prev.filter(b => b.id !== id));
-  const reorderBranches = (newBranches: Branch[]) => setBranches(newBranches);
-  const reorderDishes = (updatedDishes: Dish[]) => console.log("Reorder dishes not implemented");
-  const moveDish = (id: string, direction: 'up' | 'down') => console.log("Move dish not implemented");
+  // Not implemented yet
+  const reorderDishes = (updatedDishes: Dish[]) => { console.log("Reorder dishes not implemented"); };
+  const moveDish = (id: string, direction: 'up' | 'down') => { console.log("Move dish not implemented"); };
+  const reorderBranches = (branches: Branch[]) => { console.log("Reorder branches not implemented"); };
   const getDishesByCategory = (categoryId: string) => dishes.filter(d => d.categoryId === categoryId).sort((a, b) => a.sortOrder - b.sortOrder);
 
-  if (loading) return <div>Yuklanmoqda...</div>;
-  if (error) return <div>Xatolik: {error}</div>;
+  if (loading) return <div className="w-screen h-screen flex items-center justify-center font-bold text-xl">Yuklanmoqda...</div>;
+  if (error) return <div className="w-screen h-screen flex items-center justify-center font-bold text-xl text-red-500">Xatolik: {error}</div>;
 
   return (
     <StoreContext.Provider value={{
-      branding, updateBranding, branches, addBranch, updateBranch, deleteBranch, reorderBranches,
+      branding, updateBranding, branches, addBranch, updateBranch, deleteBranch,
       categories, addCategory, updateCategory, deleteCategory,
-      dishes, addDish, updateDish, deleteDish, reorderDishes, moveDish,
-      getDishesByCategory, loading, error
+      dishes, addDish, updateDish, deleteDish,
+      reorderDishes, moveDish, reorderBranches, getDishesByCategory,
+      loading, error
     }}>
       {children}
     </StoreContext.Provider>

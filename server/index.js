@@ -10,82 +10,60 @@ const pool = new pg.Pool({
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Limitni oshirish (rasmlarni base64'da saqlash uchun)
 
-// --- Database Initialization and Seeding (omitted for brevity) ---
+// --- Database Initialization and Seeding ---
 const initializeDatabase = async () => {
   const client = await pool.connect();
   try {
-    await client.query(`CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, sortOrder INT DEFAULT 0);`);
-    await client.query(`CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, price NUMERIC(10, 2) NOT NULL, image_url VARCHAR(255), category_id INTEGER REFERENCES categories(id), sortOrder INT DEFAULT 0);`);
-    const categoriesResult = await client.query('SELECT COUNT(*) FROM categories');
-    if (categoriesResult.rows[0].count === '0') {
-      console.log('Seeding data...');
-      const seededCategories = await client.query(`INSERT INTO categories (name, sortOrder) VALUES ('Pitsalar', 1), ('Burgerlar', 2), ('Ichimliklar', 3), ('Salatlar', 4) RETURNING id, name;`);
-      const categoryMap = new Map(seededCategories.rows.map(c => [c.name, c.id]));
-      await client.query(`INSERT INTO products (name, description, price, category_id, image_url) VALUES ('Margarita', 'Klassik pomidorli pitsa', 65000, ${categoryMap.get('Pitsalar')}, 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?q=80&w=2070&auto=format&fit=crop'), ('Cheeseburger', 'Mol go''shtidan kotlet, pishloq', 55000, ${categoryMap.get('Burgerlar')}, 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80&w=2072&auto=format&fit=crop'), ('Coca-Cola 0.5L', 'Muzdek Coca-Cola', 8000, ${categoryMap.get('Ichimliklar')}, 'https://images.unsplash.com/photo-1622483767028-3f66f32a2ea7?q=80&w=1974&auto=format&fit=crop');`);
+    console.log("Database connected!");
+    // Jadvallarni yaratish
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, sortOrder INT DEFAULT 0, viewType VARCHAR(50) DEFAULT 'grid');
+      CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, price NUMERIC(10, 2) NOT NULL, image_url TEXT, category_id INTEGER REFERENCES categories(id), sortOrder INT DEFAULT 0, isActive BOOLEAN DEFAULT true, isFeatured BOOLEAN DEFAULT false, variants JSONB, badges JSONB, availableBranchIds JSONB);
+      CREATE TABLE IF NOT EXISTS branches (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, address TEXT, phone VARCHAR(100), customColor VARCHAR(50), logoUrl TEXT);
+      CREATE TABLE IF NOT EXISTS branding (id SERIAL PRIMARY KEY, settings JSONB);
+    `);
+    
+    // Boshlang'ich ma'lumotlar (agar kerak bo'lsa)
+    const branchCount = await client.query('SELECT COUNT(*) FROM branches');
+    if (branchCount.rows[0].count === '0') {
+        console.log('Seeding initial branch...');
+        await client.query(`INSERT INTO branches (name, address, phone) VALUES ('Asosiy Filial', 'Toshkent sh, Amir Temur ko''chasi, 100', '+998901234567')`);
     }
+    const brandingCount = await client.query('SELECT COUNT(*) FROM branding');
+    if (brandingCount.rows[0].count === '0') {
+        console.log('Seeding initial branding...');
+        await client.query(`INSERT INTO branding (id, settings) VALUES (1, '${JSON.stringify({ restaurantName: 'Mening Restoranim' })}')`);
+    }
+
   } catch (err) { console.error('DB init error:', err); } finally { client.release(); }
 };
 
-// --- PUBLIC API Routes ---
+// --- API Routes ---
 app.get('/api/health', (req, res) => res.send({ status: 'ok' }));
+
+// Categories
 app.get('/api/categories', async (req, res) => { try { const r = await pool.query('SELECT * FROM categories ORDER BY sortOrder;'); res.json(r.rows); } catch (e) { res.status(500).json({e}); } });
-app.get('/api/products', async (req, res) => { try { const { category_id } = req.query; const q = category_id ? 'SELECT * FROM products WHERE category_id = $1 ORDER BY sortOrder;' : 'SELECT * FROM products ORDER BY sortOrder;'; const p = category_id ? [category_id] : []; const r = await pool.query(q, p); res.json(r.rows); } catch (e) { res.status(500).json({e}); } });
+app.post('/api/categories', async (req, res) => { try { const { name, sortOrder, viewType } = req.body; const r = await pool.query('INSERT INTO categories (name, sortOrder, viewType) VALUES ($1, $2, $3) RETURNING *', [name, sortOrder || 0, viewType || 'grid']); res.status(201).json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
+app.put('/api/categories/:id', async (req, res) => { try { const { id } = req.params; const { name, sortOrder, viewType } = req.body; const r = await pool.query('UPDATE categories SET name = $1, sortOrder = $2, viewType = $3 WHERE id = $4 RETURNING *', [name, sortOrder, viewType, id]); res.json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
+app.delete('/api/categories/:id', async (req, res) => { try { const { id } = req.params; await pool.query('DELETE FROM categories WHERE id = $1', [id]); res.status(204).send(); } catch (e) { res.status(500).json({e}); } });
 
-// --- ADMIN CATEGORY API ---
-app.post('/api/categories', async (req, res) => { try { const { name, sortOrder } = req.body; const r = await pool.query('INSERT INTO categories (name, sortOrder) VALUES ($1, $2) RETURNING *', [name, sortOrder || 0]); res.status(201).json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
-app.put('/api/categories/:id', async (req, res) => { try { const { id } = req.params; const { name, sortOrder } = req.body; const r = await pool.query('UPDATE categories SET name = $1, sortOrder = $2 WHERE id = $3 RETURNING *', [name, sortOrder, id]); res.json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
-app.delete('/api/categories/:id', async (req, res) => { try { const { id } = req.params; const c = await pool.query('SELECT COUNT(*) FROM products WHERE category_id = $1', [id]); if (c.rows[0].count > 0) return res.status(400).json({ error: 'Cannot delete category with products.' }); await pool.query('DELETE FROM categories WHERE id = $1', [id]); res.status(204).send(); } catch (e) { res.status(500).json({e}); } });
+// Products
+app.get('/api/products', async (req, res) => { try { const r = await pool.query('SELECT * FROM products ORDER BY sortOrder;'); res.json(r.rows); } catch (e) { res.status(500).json({e}); } });
+app.post('/api/products', async (req, res) => { try { const { name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds } = req.body; const r = await pool.query('INSERT INTO products (name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *', [name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds]); res.status(201).json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
+app.put('/api/products/:id', async (req, res) => { try { const { id } = req.params; const { name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds } = req.body; const r = await pool.query('UPDATE products SET name=$1, description=$2, price=$3, category_id=$4, image_url=$5, sortOrder=$6, isActive=$7, isFeatured=$8, variants=$9, badges=$10, availableBranchIds=$11 WHERE id=$12 RETURNING *', [name, description, price, category_id, image_url, sortOrder, isActive, isFeatured, variants, badges, availableBranchIds, id]); res.json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
+app.delete('/api/products/:id', async (req, res) => { try { const { id } = req.params; await pool.query('DELETE FROM products WHERE id = $1', [id]); res.status(204).send(); } catch (e) { res.status(500).json({e}); } });
 
-// --- ADMIN PRODUCT API ---
-// Create Product
-app.post('/api/products', async (req, res) => {
-  try {
-    const { name, description, price, category_id, image_url, sortOrder } = req.body;
-    if (!name || !price || !category_id) {
-      return res.status(400).json({ error: 'Name, price, and category_id are required' });
-    }
-    const result = await pool.query(
-      'INSERT INTO products (name, description, price, category_id, image_url, sortOrder) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, description, price, category_id, image_url, sortOrder || 0]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
+// Branches
+app.get('/api/branches', async (req, res) => { try { const r = await pool.query('SELECT * FROM branches;'); res.json(r.rows); } catch (e) { res.status(500).json({e}); } });
+app.post('/api/branches', async (req, res) => { try { const { name, address, phone, customColor, logoUrl } = req.body; const r = await pool.query('INSERT INTO branches (name, address, phone, customColor, logoUrl) VALUES ($1, $2, $3, $4, $5) RETURNING *', [name, address, phone, customColor, logoUrl]); res.status(201).json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
+app.put('/api/branches/:id', async (req, res) => { try { const { id } = req.params; const { name, address, phone, customColor, logoUrl } = req.body; const r = await pool.query('UPDATE branches SET name=$1, address=$2, phone=$3, customColor=$4, logoUrl=$5 WHERE id=$6 RETURNING *', [name, address, phone, customColor, logoUrl, id]); res.json(r.rows[0]); } catch (e) { res.status(500).json({e}); } });
+app.delete('/api/branches/:id', async (req, res) => { try { const { id } = req.params; await pool.query('DELETE FROM branches WHERE id = $1', [id]); res.status(204).send(); } catch (e) { res.status(500).json({e}); } });
 
-// Update Product
-app.put('/api/products/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, description, price, category_id, image_url, sortOrder } = req.body;
-    const result = await pool.query(
-      'UPDATE products SET name=$1, description=$2, price=$3, category_id=$4, image_url=$5, sortOrder=$6 WHERE id=$7 RETURNING *',
-      [name, description, price, category_id, image_url, sortOrder, id]
-    );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Product not found' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// Delete Product
-app.delete('/api/products/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('DELETE FROM products WHERE id = $1', [id]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Product not found' });
-    res.status(204).send();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
+// Branding
+app.get('/api/branding', async (req, res) => { try { const r = await pool.query('SELECT settings FROM branding WHERE id = 1;'); res.json(r.rows[0]?.settings || {}); } catch (e) { res.status(500).json({e}); } });
+app.put('/api/branding', async (req, res) => { try { const settings = req.body; const r = await pool.query('UPDATE branding SET settings = $1 WHERE id = 1 RETURNING settings;', [settings]); res.json(r.rows[0].settings); } catch (e) { res.status(500).json({e}); } });
 
 // --- Start Server ---
 initializeDatabase().then(() => {
