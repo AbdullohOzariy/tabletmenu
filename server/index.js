@@ -39,6 +39,13 @@ const initializeDatabase = async () => {
         await client.query('INSERT INTO branding (settings) VALUES ($1)', [initialSettings]);
     }
 
+    // Ensure columns exist (for updates)
+    await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS isActive BOOLEAN DEFAULT true;`);
+    await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS isFeatured BOOLEAN DEFAULT false;`);
+    await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS variants JSONB;`);
+    await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS badges JSONB;`);
+    await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS availableBranchIds JSONB;`);
+
   } catch (err) { console.error('DB init error:', err); } finally { client.release(); }
 };
 
