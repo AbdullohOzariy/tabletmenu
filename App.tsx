@@ -8,24 +8,24 @@ import { Tablet, ShieldCheck, ChefHat, ArrowRight } from 'lucide-react';
 
 const Landing: React.FC = () => {
   return (
-    // Asosiy konteyner: Och kulrang fon va markazlashtirish
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 bg-slate-50">
+    // Asosiy konteyner: Moslashuvchan padding qo'shildi (p-4 sm:p-8)
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-8 bg-slate-50">
       
       {/* Sarlavha qismi */}
-      <div className="text-center mb-16 max-w-2xl mx-auto">
+      <div className="text-center mb-12 max-w-2xl mx-auto">
         <div className="inline-flex items-center justify-center p-3 bg-white rounded-2xl shadow-sm mb-6 border border-slate-200">
           <ChefHat className="w-8 h-8 text-orange-500" />
         </div>
-        <h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight mb-4">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight mb-4">
           Tablet<span className="text-orange-500">Menu</span>
         </h1>
-        <p className="text-xl text-slate-500 leading-relaxed">
+        <p className="text-lg sm:text-xl text-slate-500 leading-relaxed">
           Restoran biznesingiz uchun zamonaviy raqamli menyu.
-        </p>
+        p>
       </div>
 
-      {/* Kartalar qismi */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full">
+      {/* Kartalar qismi: Breakpoint 'lg' ga o'zgartirildi va 'px-4' qo'shildi */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 max-w-4xl w-full px-4">
         
         {/* Mijoz Kartasi */}
         <Link 
