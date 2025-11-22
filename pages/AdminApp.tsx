@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
@@ -240,7 +239,7 @@ const BranchManager: React.FC = () => {
              <div className="flex items-start justify-between mb-6">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg overflow-hidden relative bg-gray-100">
                    {branch.logoUrl ? (
-                     <img src={branch.logoUrl} className="w-full h-full object-cover" alt="Logo" onError={(e) => (e.target as HTMLImageElement).src='https://via.placeholder.com/100?text=Logo'}/>
+                     <img src={branch.logoUrl} className="w-full h-full object-cover" alt="Logo" onError={(e) => (e.target as HTMLImageElement).src='https://placehold.co/100x100/FFFFFF/333333?text=Logo'}/>
                    ) : (
                      <Store size={32} className="text-gray-400" />
                    )}
@@ -284,7 +283,7 @@ const BranchManager: React.FC = () => {
              <div className="flex flex-col gap-3 shrink-0 items-center md:items-start">
                 <div className="w-32 h-32 rounded-2xl flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 bg-gray-50 relative group">
                     {formState.logoUrl ? (
-                        <img src={formState.logoUrl} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src='https://via.placeholder.com/150?text=Error'} />
+                        <img src={formState.logoUrl} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src='https://placehold.co/150x150/FFFFFF/333333?text=Error'} />
                     ) : (
                         <ImageIcon className="text-gray-400 w-10 h-10" />
                     )}
@@ -563,7 +562,7 @@ const MenuManager: React.FC = () => {
 
                   <div className={`rounded-2xl bg-gray-100 shrink-0 overflow-hidden border border-gray-100 relative ${dish.isFeatured ? 'w-48 h-24' : 'w-24 h-24'}`}>
                      {dish.imageUrls[0] ? (
-                        <img src={dish.imageUrls[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" onError={(e) => (e.target as HTMLImageElement).src='https://via.placeholder.com/200?text=No+Img'} />
+                        <img src={dish.imageUrls[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" onError={(e) => (e.target as HTMLImageElement).src='https://placehold.co/200x200/FFFFFF/333333?text=No+Img'} />
                      ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-300"><ChefHat size={24}/></div>
                      )}
@@ -926,7 +925,7 @@ const SettingsManager: React.FC = () => {
          <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 mb-6">
             <div className="flex items-center gap-6 mb-8">
                <div className="w-24 h-24 rounded-full bg-gray-100 border-4 border-white shadow-lg overflow-hidden shrink-0">
-                  <img src={localBrand.logoUrl} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src='https://via.placeholder.com/150?text=Logo'} />
+                  <img src={localBrand.logoUrl} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src='https://placehold.co/100x100/FFFFFF/333333?text=Logo'} />
                </div>
                <div>
                   <h2 className="text-2xl font-black text-gray-900">Brending</h2>
@@ -1097,7 +1096,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
          <div className="mt-auto p-6 border-t border-gray-50">
             <div className="bg-gray-50 rounded-2xl p-4 flex items-center gap-3 mb-4 border border-gray-100">
                <div className="w-10 h-10 rounded-full bg-white border border-gray-200 overflow-hidden shrink-0">
-                  <img src={branding.logoUrl} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src='https://via.placeholder.com/100'} />
+                  <img src={branding.logoUrl} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src='https://placehold.co/100x100/FFFFFF/333333?text=Logo'} />
                </div>
                <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold truncate text-gray-900">{branding.restaurantName}</p>
