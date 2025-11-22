@@ -40,7 +40,7 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const API_URL = "https://tabletmenu-backend-production.up.railway.app";
+const API_URL = import.meta.env.VITE_API_URL || "https://tabletmenu-backend-production.up.railway.app";
 
 const mapToFrontend = (data: any, type: 'dish' | 'branch' | 'category') => {
     if (type === 'dish') return { ...data, id: data.id.toString(), categoryId: data.category_id?.toString(), imageUrls: data.image_url ? [data.image_url] : [] };
