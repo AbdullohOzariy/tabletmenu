@@ -25,14 +25,14 @@ interface StoreContextType {
   addCategory: (name: string, viewType: CategoryViewType) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+  reorderCategories: (updatedCategories: Category[]) => Promise<void>;
   dishes: Dish[];
   addDish: (dish: Omit<Dish, 'id'>) => Promise<void>;
   updateDish: (id: string, data: Partial<Dish>) => Promise<void>;
   deleteDish: (id: string) => Promise<void>;
   loading: boolean;
   error: string | null;
-  // Hali implement qilinmagan funksiyalar
-  reorderDishes: (updatedDishes: Dish[]) => void;
+  reorderDishes: (updatedDishes: Dish[]) => Promise<void>;
   moveDish: (id: string, direction: 'up' | 'down') => void;
   reorderBranches: (branches: Branch[]) => void;
   getDishesByCategory: (categoryId: string) => Dish[];
@@ -76,7 +76,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         setBranding({ ...initialBranding, ...brandData });
         setBranches(branchData.map((d: any) => mapToFrontend(d, 'branch')));
-        setCategories(catData.map((d: any) => mapToFrontend(d, 'category')));
+        setCategories(catData.map((d: any) => mapToFrontend(d, 'category')).sort((a: Category, b: Category) => a.sortOrder - b.sortOrder));
         setDishes(prodData.map((d: any) => mapToFrontend(d, 'dish')));
         
         setError(null);
@@ -136,6 +136,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await apiRequest(`/api/categories/${id}`, 'DELETE');
       setCategories(prev => prev.filter(c => c.id !== id));
   };
+  const reorderCategories = async (updatedCategories: Category[]) => {
+    setCategories(updatedCategories); // Optimistic update
+    try {
+        await apiRequest('/api/categories/reorder', 'PUT', updatedCategories.map(c => ({ id: c.id, sortOrder: c.sortOrder })));
+    } catch (err) {
+        console.error("Failed to reorder categories:", err);
+        // TODO: Revert state or show error toast
+    }
+  };
 
   // --- DISHES ---
   const addDish = async (data: Omit<Dish, 'id'>) => {
@@ -163,8 +172,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setDishes(prev => prev.filter(d => d.id !== id));
   };
 
+  // --- REORDERING ---
+  const reorderDishes = async (updatedDishes: Dish[]) => {
+    setDishes(updatedDishes); // Optimistic update
+    try {
+        await apiRequest('/api/products/reorder', 'PUT', updatedDishes.map(d => ({ id: d.id, sortOrder: d.sortOrder })));
+    } catch (err) {
+        console.error("Failed to reorder dishes:", err);
+        // TODO: Revert state or show error toast
+    }
+  };
+  
   // Not implemented yet
-  const reorderDishes = (updatedDishes: Dish[]) => { console.log("Reorder dishes not implemented"); };
   const moveDish = (id: string, direction: 'up' | 'down') => { console.log("Move dish not implemented"); };
   const reorderBranches = (branches: Branch[]) => { console.log("Reorder branches not implemented"); };
   const getDishesByCategory = (categoryId: string) => dishes.filter(d => d.categoryId === categoryId).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -175,7 +194,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <StoreContext.Provider value={{
       branding, updateBranding, branches, addBranch, updateBranch, deleteBranch,
-      categories, addCategory, updateCategory, deleteCategory,
+      categories, addCategory, updateCategory, deleteCategory, reorderCategories,
       dishes, addDish, updateDish, deleteDish,
       reorderDishes, moveDish, reorderBranches, getDishesByCategory,
       loading, error

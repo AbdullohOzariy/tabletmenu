@@ -339,12 +339,13 @@ const BranchManager: React.FC = () => {
 };
 
 const MenuManager: React.FC = () => {
-  const { categories, addCategory, updateCategory, deleteCategory, dishes, addDish, updateDish, deleteDish, moveDish, reorderDishes, branches } = useStore();
+  const { categories, addCategory, updateCategory, deleteCategory, reorderCategories, dishes, addDish, updateDish, deleteDish, moveDish, reorderDishes, branches } = useStore();
   const { showToast } = useToast();
   
   const [activeTab, setActiveTab] = useState<'dishes' | 'categories'>('dishes');
   const [selectedCatId, setSelectedCatId] = useState<string>('all');
   const [draggedDishId, setDraggedDishId] = useState<string | null>(null);
+  const [draggedCatId, setDraggedCatId] = useState<string | null>(null);
 
   // Modals
   const [isDishModalOpen, setIsDishModalOpen] = useState(false);
@@ -459,37 +460,51 @@ const MenuManager: React.FC = () => {
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   // --- Drag and Drop Logic ---
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    setDraggedDishId(id);
+  const handleDragStart = (e: React.DragEvent, id: string, type: 'dish' | 'category') => {
+    if (type === 'dish') setDraggedDishId(id);
+    else setDraggedCatId(id);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Necessary for drop
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
+  const handleDrop = (e: React.DragEvent, targetId: string, type: 'dish' | 'category') => {
     e.preventDefault();
-    if (!draggedDishId || draggedDishId === targetId) return;
-    if (selectedCatId === 'all') return; // Should not happen due to UI check
+    if (type === 'dish') {
+        if (!draggedDishId || draggedDishId === targetId) return;
+        if (selectedCatId === 'all') return;
 
-    const currentList = [...filteredDishes];
-    const fromIndex = currentList.findIndex(d => d.id === draggedDishId);
-    const toIndex = currentList.findIndex(d => d.id === targetId);
+        const currentList = [...filteredDishes];
+        const fromIndex = currentList.findIndex(d => d.id === draggedDishId);
+        const toIndex = currentList.findIndex(d => d.id === targetId);
+        if (fromIndex < 0 || toIndex < 0) return;
 
-    if (fromIndex < 0 || toIndex < 0) return;
+        const [movedItem] = currentList.splice(fromIndex, 1);
+        currentList.splice(toIndex, 0, movedItem);
 
-    // Move item
-    const [movedItem] = currentList.splice(fromIndex, 1);
-    currentList.splice(toIndex, 0, movedItem);
+        const updated = currentList.map((d, i) => ({ ...d, sortOrder: i + 1 }));
+        reorderDishes(updated);
+        setDraggedDishId(null);
+        showToast("Taomlar tartibi yangilandi");
+    } else {
+        if (!draggedCatId || draggedCatId === targetId) return;
+        
+        const currentList = [...categories];
+        const fromIndex = currentList.findIndex(c => c.id === draggedCatId);
+        const toIndex = currentList.findIndex(c => c.id === targetId);
+        if (fromIndex < 0 || toIndex < 0) return;
 
-    // Update sortOrder for all items
-    const updated = currentList.map((d, i) => ({ ...d, sortOrder: i + 1 }));
-    
-    reorderDishes(updated);
-    setDraggedDishId(null);
-    showToast("Tartib yangilandi");
+        const [movedItem] = currentList.splice(fromIndex, 1);
+        currentList.splice(toIndex, 0, movedItem);
+
+        const updated = currentList.map((c, i) => ({ ...c, sortOrder: i + 1 }));
+        reorderCategories(updated);
+        setDraggedCatId(null);
+        showToast("Kategoriyalar tartibi yangilandi");
+    }
   };
 
   return (
@@ -548,9 +563,9 @@ const MenuManager: React.FC = () => {
                <div 
                   key={dish.id} 
                   draggable={selectedCatId !== 'all'}
-                  onDragStart={(e) => handleDragStart(e, dish.id)}
+                  onDragStart={(e) => handleDragStart(e, dish.id, 'dish')}
                   onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, dish.id)}
+                  onDrop={(e) => handleDrop(e, dish.id, 'dish')}
                   className={`group bg-white rounded-3xl p-4 border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex gap-4 relative overflow-hidden ${dish.isFeatured ? 'lg:col-span-2' : ''} ${draggedDishId === dish.id ? 'opacity-50 border-orange-400 border-2 scale-95' : 'border-gray-100'} ${selectedCatId !== 'all' ? 'cursor-grab active:cursor-grabbing' : ''}`}
                >
                   {/* Grip Icon for Draggable Indicator */}
@@ -648,29 +663,43 @@ const MenuManager: React.FC = () => {
          </div>
          </>
       ) : (
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categories.sort((a,b) => a.sortOrder - b.sortOrder).map(cat => (
-               <div key={cat.id} className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex items-center justify-between group hover:border-orange-200 hover:shadow-md transition-all">
-                  <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-orange-50 group-hover:text-orange-500 transition-colors">
-                        {cat.viewType === 'list' ? <LayoutList size={24}/> : <Grid size={24}/>}
-                     </div>
-                     <div>
-                        <h3 className="font-bold text-gray-900 text-lg">{cat.name}</h3>
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{cat.viewType === 'list' ? "Ro'yxat ko'rinishida" : "Kartochka ko'rinishida"}</span>
-                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                     <button onClick={() => updateCategory(cat.id, { viewType: cat.viewType === 'grid' ? 'list' : 'grid' })} className="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Ko'rinishni o'zgartirish">
-                        {cat.viewType === 'grid' ? <LayoutList size={18}/> : <Grid size={18}/>}
-                     </button>
-                     <button onClick={() => {if(confirm('O\'chirilsinmi?')) deleteCategory(cat.id)}} className="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors">
-                        <Trash2 size={18}/>
-                     </button>
-                  </div>
-               </div>
-            ))}
-         </div>
+         <>
+            <div className="mb-4 p-4 bg-orange-50 border border-orange-100 rounded-2xl flex items-center gap-3 text-orange-800 animate-slideIn">
+                <Hand size={20} className="animate-pulse"/>
+                <p className="text-sm font-bold">Sichqoncha bilan ushlab surish orqali tartibni o'zgartiring.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {categories.map(cat => (
+                <div 
+                    key={cat.id} 
+                    draggable 
+                    onDragStart={(e) => handleDragStart(e, cat.id, 'category')}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, cat.id, 'category')}
+                    className={`bg-white rounded-3xl p-5 border shadow-sm flex items-center justify-between group hover:border-orange-200 hover:shadow-md transition-all cursor-grab active:cursor-grabbing ${draggedCatId === cat.id ? 'opacity-50 border-orange-400 border-2 scale-95' : 'border-gray-100'}`}
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-orange-50 group-hover:text-orange-500 transition-colors">
+                            <GripVertical size={20} className="text-gray-300 group-hover:text-orange-400 mr-2" />
+                            {cat.viewType === 'list' ? <LayoutList size={24}/> : <Grid size={24}/>}
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-gray-900 text-lg">{cat.name}</h3>
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{cat.viewType === 'list' ? "Ro'yxat ko'rinishida" : "Kartochka ko'rinishida"}</span>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => updateCategory(cat.id, { viewType: cat.viewType === 'grid' ? 'list' : 'grid' })} className="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Ko'rinishni o'zgartirish">
+                            {cat.viewType === 'grid' ? <LayoutList size={18}/> : <Grid size={18}/>}
+                        </button>
+                        <button onClick={() => {if(confirm('O\'chirilsinmi?')) deleteCategory(cat.id)}} className="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors">
+                            <Trash2 size={18}/>
+                        </button>
+                    </div>
+                </div>
+                ))}
+            </div>
+         </>
       )}
 
       {/* Category Modal */}
