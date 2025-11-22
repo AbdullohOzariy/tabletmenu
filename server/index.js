@@ -10,7 +10,7 @@ const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-app.use(cors());
+app.use(cors({ origin: 'https://tabletmenu-frontend-production.up.railway.app' }));
 app.use(express.json({ limit: '10mb' })); // Limitni oshirish (rasmlarni base64'da saqlash uchun)
 
 // --- Database Initialization and Seeding ---
