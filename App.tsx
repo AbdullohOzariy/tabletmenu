@@ -6,7 +6,36 @@ import CustomerApp from './pages/CustomerApp';
 import AdminApp from './pages/AdminApp';
 import { Tablet, ShieldCheck, ChefHat, ArrowRight } from 'lucide-react';
 
+// --- Diagnostika uchun komponent ---
+const DebugInfo: React.FC = () => {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  return (
+    <div style={{
+      position: 'fixed',
+      top: '10px',
+      left: '10px',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      color: 'white',
+      padding: '10px',
+      borderRadius: '8px',
+      zIndex: 9999,
+      fontSize: '12px',
+      fontFamily: 'monospace'
+    }}>
+      <h4 style={{ margin: 0, paddingBottom: '5px', borderBottom: '1px solid #555' }}>Debug Info</h4>
+      <p style={{ margin: '5px 0 0' }}>
+        <strong>VITE_API_URL:</strong> 
+        <span style={{ color: apiUrl ? '#76ff03' : '#ff5252', wordBreak: 'break-all' }}>
+          {apiUrl ? `"${apiUrl}"` : "NOT SET"}
+        </span>
+      </p>
+    </div>
+  );
+};
+
+
 const Landing: React.FC = () => {
+  // ... (Landing komponenti o'zgarishsiz)
   return (
     <div className="min-h-screen bg-[#F8F9FC] flex flex-col items-center justify-center p-6 relative overflow-hidden">
       {/* Background Decoration */}
@@ -69,17 +98,20 @@ const Landing: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <StoreProvider>
-      <ToastProvider>
-        <HashRouter>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/customer" element={<CustomerApp />} />
-            <Route path="/admin" element={<AdminApp />} />
-          </Routes>
-        </HashRouter>
-      </ToastProvider>
-    </StoreProvider>
+    <>
+      <DebugInfo />
+      <StoreProvider>
+        <ToastProvider>
+          <HashRouter>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/customer" element={<CustomerApp />} />
+              <Route path="/admin" element={<AdminApp />} />
+            </Routes>
+          </HashRouter>
+        </ToastProvider>
+      </StoreProvider>
+    </>
   );
 };
 
