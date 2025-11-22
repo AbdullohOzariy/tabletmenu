@@ -48,7 +48,7 @@ const BranchSelector: React.FC<{ onSelect: (b: Branch) => void }> = ({ onSelect 
                src={branding.logoUrl} 
                alt="Logo" 
                className="w-full h-full rounded-full object-cover"
-               onError={(e) => (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200?text=Logo'}
+               onError={(e) => (e.target as HTMLImageElement).src = 'https://placehold.co/200x200/FFFFFF/333333?text=Logo'}
              />
           </div>
           {/* Inverse text color for header area as it sits on dark bg/image */}
@@ -385,7 +385,7 @@ const MenuViewer: React.FC<{ branch: Branch; onBack: () => void }> = ({ branch, 
                                            alt={dish.name} 
                                            className="w-full h-full object-cover snap-center shrink-0 transform transition-transform duration-700 group-hover:scale-105"
                                            loading="lazy"
-                                           onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400?text=No+Image' }}
+                                           onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x250/EFEFEF/333333?text=Rasm+Yoq' }}
                                         />
                                      ))
                                   ) : (
