@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Branch, Category, Dish, Branding, CategoryViewType } from '../types';
 import { initialBranches, initialBranding } from '../services/mockData';
 
-// ... (interface StoreContextType - o'zgarishsiz)
 interface StoreContextType {
   branding: Branding;
   updateBranding: (settings: Partial<Branding>) => void;
@@ -26,14 +25,10 @@ interface StoreContextType {
   error: string | null;
 }
 
-
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-// =================================================================
-// YAKUNIY TEST: Manzilni to'g'ridan-to'g'ri kodga yozamiz (hardcode)
-// =================================================================
-const API_URL = "https://tabletmenu-backend-production.up.railway.app";
-
+// To'g'ri usul: Muhit o'zgaruvchisidan o'qish
+const API_URL = import.meta.env.VITE_API_URL;
 
 const mapProductToDish = (product: any): Dish => ({
   ...product,
@@ -58,29 +53,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!API_URL) {
+        setError("VITE_API_URL muhit o'zgaruvchisi o'rnatilmagan. Railway sozlamalarini tekshiring.");
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
-        console.log(`So'rov yuborilmoqda: ${API_URL}/api/categories`); // Qo'shimcha diagnostika
-        
         const [catRes, prodRes] = await Promise.all([
           fetch(`${API_URL}/api/categories`),
           fetch(`${API_URL}/api/products`)
         ]);
 
-        console.log(`Javob statusi: Kategoriyalar - ${catRes.status}, Mahsulotlar - ${prodRes.status}`); // Qo'shimcha diagnostika
-
         if (!catRes.ok || !prodRes.ok) {
-          // Xato haqida batafsil ma'lumot olishga harakat qilamiz
-          const catError = catRes.ok ? '' : await catRes.text();
-          const prodError = prodRes.ok ? '' : await prodRes.text();
-          throw new Error(`API so'rovida xatolik. Kategoriyalar (${catRes.status}): ${catError}. Mahsulotlar (${prodRes.status}): ${prodError}`);
+          throw new Error(`API so'rovida xatolik: Kategoriyalar ${catRes.status}, Mahsulotlar ${prodRes.status}`);
         }
 
         const catData = await catRes.json();
         const prodData = await prodRes.json();
         setCategories(catData.map((c: any) => ({ ...c, id: c.id.toString() })));
         setDishes(prodData.map(mapProductToDish));
-        setError(null); // Muvaffaqiyatli bo'lsa, eski xatolarni tozalash
+        setError(null);
 
       } catch (e: any) {
         setError(e.message);
@@ -92,7 +85,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetchData();
   }, []);
 
-  // --- CRUD Funksiyalari (barchasi endi hardcoded manzilni ishlatadi) ---
+  // --- CRUD Funksiyalari ---
   const addCategory = async (name: string, viewType: CategoryViewType = 'grid') => {
     try {
       const res = await fetch(`${API_URL}/api/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, viewType, sortOrder: categories.length + 1 }) });
@@ -101,7 +94,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setCategories(prev => [...prev, { ...newCategory, id: newCategory.id.toString() }]);
     } catch (err) { console.error(err); }
   };
-  // ... (boshqa CRUD funksiyalari ham avtomatik to'g'ri manzilni ishlatadi)
   const updateCategory = async (id: string, data: Partial<Category>) => {
     try {
       const res = await fetch(`${API_URL}/api/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
