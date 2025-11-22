@@ -144,7 +144,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setDishes(prev => [...prev, mapToFrontend(newDish, 'dish')]);
   };
   const updateDish = async (id: string, data: Partial<Dish>) => {
-      const payload = { ...data, category_id: data.categoryId, image_url: data.imageUrls?.[0] || null };
+      const payload: any = { ...data };
+      if ('categoryId' in data) {
+        payload.category_id = data.categoryId;
+      }
+      delete payload.categoryId;
+
+      if ('imageUrls' in data) {
+        payload.image_url = data.imageUrls?.[0] || null;
+      }
+      delete payload.imageUrls;
+
       const updatedDish = await apiRequest(`/api/products/${id}`, 'PUT', payload);
       setDishes(prev => prev.map(d => d.id === id ? mapToFrontend(updatedDish, 'dish') : d));
   };
