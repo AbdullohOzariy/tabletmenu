@@ -67,6 +67,9 @@ app.delete('/api/branches/:id', async (req, res) => { try { const { id } = req.p
 app.get('/api/branding', async (req, res) => { try { const r = await pool.query('SELECT settings FROM branding WHERE id = 1;'); res.json(r.rows[0]?.settings || {}); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.put('/api/branding', async (req, res) => { try { const settings = req.body; const r = await pool.query('UPDATE branding SET settings = $1 WHERE id = 1 RETURNING settings;', [settings]); res.json(r.rows[0].settings); } catch (e) { res.status(500).json({ error: e.message }); } });
 
+// Menu (combined data)
+app.get('/api/menu', async (req, res) => { try { const [catRes, prodRes] = await Promise.all([pool.query('SELECT * FROM categories ORDER BY sortOrder;'), pool.query('SELECT * FROM products ORDER BY sortOrder;')]); res.json({ categories: catRes.rows, dishes: prodRes.rows }); } catch (e) { res.status(500).json({ error: e.message }); } });
+
 // --- Start Server ---
 (async () => {
   console.log('Server starting...');
