@@ -1,0 +1,27 @@
+{
+  "services": {
+    "frontend": {
+      "source": {
+        "root": "."
+      },
+      "build": {
+        "builder": "NIXPACKS"
+      },
+      "deploy": {
+        "startCommand": "npm run dev"
+      }
+    },
+    "backend": {
+      "source": {
+        "root": "server"
+      },
+      "build": {
+        "builder": "NIXPACKS"
+      },
+      "deploy": {
+        "startCommand": "node index.js"
+      }
+    }
+  }
+}
+
