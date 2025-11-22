@@ -42,10 +42,45 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const API_URL = import.meta.env.VITE_API_URL || "https://tabletmenu-backend-production.up.railway.app";
 
-const mapToFrontend = (data: any, type: 'dish' | 'branch' | 'category') => {
-    if (type === 'dish') return { ...data, id: data.id.toString(), categoryId: data.category_id?.toString(), imageUrls: data.image_url ? [data.image_url] : [] };
-    if (type === 'branch' || type === 'category') return { ...data, id: data.id.toString() };
-    return data;
+const mapToFrontend = (data: any, type: 'dish' | 'branch' | 'category'): any => {
+    const { id, ...rest } = data;
+    const base = { ...rest, id: id.toString() };
+
+    if (type === 'dish') {
+        return {
+            ...base,
+            categoryId: data.category_id?.toString() || '',
+            imageUrls: data.image_url ? [data.image_url] : [],
+            isFeatured: data.is_featured,
+            isActive: data.is_active,
+            sortOrder: data.sort_order,
+            availableBranchIds: data.available_branch_ids || [],
+        };
+    }
+    if (type === 'category') {
+        return {
+            ...base,
+            viewType: data.view_type,
+            sortOrder: data.sort_order,
+        };
+    }
+    return base;
+};
+
+const mapToBackend = (data: Partial<Dish>): any => {
+    const backendData: any = {};
+    for (const key in data) {
+        const newKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+        backendData[newKey] = (data as any)[key];
+    }
+    if (backendData.category_id) {
+        backendData.category_id = Number(backendData.category_id);
+    }
+    if (backendData.image_urls) {
+        backendData.image_url = backendData.image_urls[0] || null;
+        delete backendData.image_urls;
+    }
+    return backendData;
 };
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -56,7 +91,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- BARCHA MA'LUMOTLARNI YUKLASH ---
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -97,19 +131,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         body: body ? JSON.stringify(body) : undefined,
       });
       if (!res.ok) {
-          const errorData = await res.json().catch(() => ({ error: 'Serverda noma\'lum xatolik' }));
-          throw new Error(errorData.error || `Failed to ${method} ${endpoint}`);
+          const errorData = await res.json().catch(() => ({ message: 'Serverda noma\'lum xatolik' }));
+          throw new Error(errorData.message || `Failed to ${method} ${endpoint}`);
       }
       return res.status === 204 ? null : res.json();
   };
 
-  // --- BRANDING ---
   const updateBranding = async (data: Partial<Branding>) => {
       const updatedBranding = await apiRequest('/api/branding', 'PUT', data);
       setBranding(prev => ({ ...prev, ...updatedBranding }));
   };
 
-  // --- BRANCHES ---
   const addBranch = async (data: Omit<Branch, 'id'>) => {
       const newBranch = await apiRequest('/api/branches', 'POST', data);
       setBranches(prev => [...prev, mapToFrontend(newBranch, 'branch')]);
@@ -123,7 +155,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setBranches(prev => prev.filter(b => b.id !== id));
   };
 
-  // --- CATEGORIES ---
   const addCategory = async (name: string, viewType: CategoryViewType) => {
       const newCategory = await apiRequest('/api/categories', 'POST', { name, viewType, sortOrder: categories.length });
       setCategories(prev => [...prev, mapToFrontend(newCategory, 'category')]);
@@ -137,33 +168,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setCategories(prev => prev.filter(c => c.id !== id));
   };
   const reorderCategories = async (updatedCategories: Category[]) => {
-    setCategories(updatedCategories); // Optimistic update
+    setCategories(updatedCategories);
     try {
-        await apiRequest('/api/categories/reorder', 'PUT', updatedCategories.map(c => ({ id: c.id, sortOrder: c.sortOrder })));
+        await apiRequest('/api/categories/reorder', 'PUT', { categories: updatedCategories.map(c => ({ id: c.id, sort_order: c.sortOrder })) });
     } catch (err) {
         console.error("Failed to reorder categories:", err);
-        // TODO: Revert state or show error toast
     }
   };
 
-  // --- DISHES ---
   const addDish = async (data: Omit<Dish, 'id'>) => {
-      const payload = { ...data, category_id: data.categoryId, image_url: data.imageUrls?.[0] || null };
+      const payload = mapToBackend(data as Dish);
       const newDish = await apiRequest('/api/products', 'POST', payload);
       setDishes(prev => [...prev, mapToFrontend(newDish, 'dish')]);
   };
   const updateDish = async (id: string, data: Partial<Dish>) => {
-      const payload: any = { ...data };
-      if ('categoryId' in data) {
-        payload.category_id = data.categoryId;
-      }
-      delete payload.categoryId;
-
-      if ('imageUrls' in data) {
-        payload.image_url = data.imageUrls?.[0] || null;
-      }
-      delete payload.imageUrls;
-
+      const currentDish = dishes.find(d => d.id === id);
+      if (!currentDish) return;
+      
+      const updatedData = { ...currentDish, ...data };
+      const payload = mapToBackend(updatedData);
+      
       const updatedDish = await apiRequest(`/api/products/${id}`, 'PUT', payload);
       setDishes(prev => prev.map(d => d.id === id ? mapToFrontend(updatedDish, 'dish') : d));
   };
@@ -172,19 +196,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setDishes(prev => prev.filter(d => d.id !== id));
   };
 
-  // --- REORDERING ---
   const reorderDishes = async (updatedDishes: Dish[]) => {
-    setDishes(updatedDishes); // Optimistic update
+    setDishes(updatedDishes);
     try {
-        await apiRequest('/api/products/reorder', 'PUT', updatedDishes.map(d => ({ id: d.id, sortOrder: d.sortOrder })));
+        await apiRequest('/api/products/reorder', 'PUT', { products: updatedDishes.map(d => ({ id: d.id, sort_order: d.sortOrder })) });
     } catch (err) {
         console.error("Failed to reorder dishes:", err);
-        // TODO: Revert state or show error toast
     }
   };
   
-  // Not implemented yet
-  const moveDish = (id: string, direction: 'up' | 'down') => { console.log("Move dish not implemented"); };
+  const moveDish = (id: string, direction: 'up' | 'down') => {
+    const dish = dishes.find(d => d.id === id);
+    if (!dish) return;
+    const categoryDishes = dishes.filter(d => d.categoryId === dish.categoryId).sort((a,b) => a.sortOrder - b.sortOrder);
+    const fromIndex = categoryDishes.findIndex(d => d.id === id);
+    if (fromIndex === -1) return;
+    
+    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= categoryDishes.length) return;
+
+    const [movedItem] = categoryDishes.splice(fromIndex, 1);
+    categoryDishes.splice(toIndex, 0, movedItem);
+    
+    const updated = categoryDishes.map((d, i) => ({ ...d, sortOrder: i + 1 }));
+    reorderDishes(updated);
+  };
+  
   const reorderBranches = (branches: Branch[]) => { console.log("Reorder branches not implemented"); };
   const getDishesByCategory = (categoryId: string) => dishes.filter(d => d.categoryId === categoryId).sort((a, b) => a.sortOrder - b.sortOrder);
 
