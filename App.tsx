@@ -19,9 +19,10 @@ const Landing: React.FC = () => {
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight mb-4">
           Tablet<span className="text-orange-500">Menu</span>
         </h1>
+        {/* XATO TUZATILDI: <p> tegi to'g'ri yopildi */}
         <p className="text-lg sm:text-xl text-slate-500 leading-relaxed">
           Restoran biznesingiz uchun zamonaviy raqamli menyu.
-        p>
+        </p>
       </div>
 
       {/* Kartalar qismi: Breakpoint 'lg' ga o'zgartirildi va 'px-4' qo'shildi */}
