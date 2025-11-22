@@ -68,8 +68,15 @@ app.get('/api/branding', async (req, res) => { try { const r = await pool.query(
 app.put('/api/branding', async (req, res) => { try { const settings = req.body; const r = await pool.query('UPDATE branding SET settings = $1 WHERE id = 1 RETURNING settings;', [settings]); res.json(r.rows[0].settings); } catch (e) { res.status(500).json({ error: e.message }); } });
 
 // --- Start Server ---
-initializeDatabase().then(() => {
+(async () => {
+  console.log('Server starting...');
+  try {
+    await initializeDatabase();
+    console.log('Database initialized.');
+  } catch (err) {
+    console.error('Failed to initialize database:', err);
+  }
   app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
   });
-});
+})();
