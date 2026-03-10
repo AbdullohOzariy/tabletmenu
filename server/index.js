@@ -1,4 +1,4 @@
-// Force redeploy: 6
+// Force redeploy: 7
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
@@ -10,20 +10,8 @@ const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-const allowedOrigins = [
-    'https://tabletmenu-frontend-production.up.railway.app',
-    'https://tablet-production-2f22.up.railway.app'
-];
-
-app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    }
-}));
+// Temporarily allow all origins for debugging
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // --- Database Initialization ---
